@@ -79,75 +79,31 @@
     }
 
     async function loadDataAndMarkers() {
-      try {
-        setMessage(`<span style="color:#555;">Supabase 데이터를 불러오는 중...</span>`);
+      const supabase = window.supabase.createClient(supabaseUrl, supabaseKey, {
+        auth: { persistSession: false }
+      });
 
-        supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey, {
-          auth: {
-            persistSession: false
+      const { data, error } = await supabase.from('yteen_map_2').select('*');
+
+      if (error) {
+        console.error('데이터 불러오기 실패:', error);
+        return;
+      }
+
+      console.log('받아온 데이터 전체:', data);
+
+      if (data && data.length > 0) {
+        data.forEach(item => {
+          console.log('한 개의 데이터:', item);
+
+          const lat = item.latitude;
+          const lng = item.longitude;
+
+          if (lat && lng) {
+            const position = new kakao.maps.LatLng(lat, lng);
+            new kakao.maps.Marker({ map: map, position: position });
           }
         });
-
-        const { data, error } = await supabaseClient
-          .from('yteen_map_2')
-          .select('*');
-
-        console.log('Supabase 응답:', { data, error });
-
-        if (error) {
-          throw error;
-        }
-
-        if (!data || data.length === 0) {
-          setMessage(`<span style="color:orange; font-weight:bold;">⚠️ 연결 성공! 단, 테이블에 데이터가 없습니다.</span>`);
-          return;
-        }
-
-        setMessage(`<span style="color:green; font-weight:bold;">🎉 학교 ${data.length}개 로드 성공!</span>`);
-
-        let firstPosition = null;
-
-        data.forEach((school) => {
-          const name = school.school_name || school.name || '이름 없음';
-
-          const lat = Number(school.latitude ?? school.lat);
-          const lng = Number(school.longitude ?? school.lng);
-
-          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-            console.warn('위도/경도 값 오류:', school);
-            return;
-          }
-
-          const markerPosition = new kakao.maps.LatLng(lat, lng);
-
-          if (!firstPosition) {
-            firstPosition = markerPosition;
-          }
-
-          const marker = new kakao.maps.Marker({
-            position: markerPosition
-          });
-
-          marker.setMap(map);
-
-          const infowindow = new kakao.maps.InfoWindow({
-            content: `<div style="padding:5px; font-size:12px; text-align:center; white-space:nowrap;">${name}</div>`
-          });
-
-          kakao.maps.event.addListener(marker, 'click', function () {
-            infowindow.open(map, marker);
-          });
-        });
-
-        if (firstPosition) {
-          map.setCenter(firstPosition);
-        } else {
-          setMessage(`<span style="color:orange; font-weight:bold;">⚠️ 데이터는 있지만 유효한 위도/경도 값이 없습니다.</span>`);
-        }
-
-      } catch (err) {
-        console.error('데이터 로드 실패:', err);
-        setMessage(`<span style="color:red; font-weight:bold;">❌ 에러: ${err.message}</span>`);
       }
     }
 
