@@ -79,47 +79,59 @@
     }
 
     async function loadDataAndMarkers() {
-      const supabase = window.supabase.createClient(supabaseUrl, supabaseKey, {
-        auth: { persistSession: false }
-      });
+  const supabase = window.supabase.createClient(supabaseUrl, supabaseKey, {
+    auth: { persistSession: false }
+  });
 
-      const { data, error } = await supabase.from('yteen_map_2').select('*');
+  // 1. 테이블의 모든 컬럼(* = ID, name, latitude, longitude, address, type)을 가져옵니다.
+  const { data, error } = await supabase.from('yteen_map_2').select('*');
 
-      if (error) {
-        console.error('데이터 불러오기 실패:', error);
-        return;
-      }
+  if (error) {
+    console.error('데이터 불러오기 실패:', error);
+    return;
+  }
 
-      console.log('받아온 데이터 전체:', data);
+  console.log('받아온 데이터 전체:', data);
 
-      if (data && data.length > 0) {
-        data.forEach(item => {
-          console.log('한 개의 데이터:', item);
+  if (data && data.length > 0) {
+    data.forEach(item => {
+      console.log('한 개의 데이터:', item);
 
-          const lat = item.latitude;
-          const lng = item.longitude;
+      // 2. 사진 속 테이블 컬럼명과 정확히 매칭
+      const lat = item.latitude;
+      const lng = item.longitude;
+      const name = item.name || '이름 없음';
+      const address = item.address || '주소 정보 없음';
+      const type = item.type || '미분류';
 
-          if (lat && lng) {
-            const position = new kakao.maps.LatLng(lat, lng);
-            new kakao.maps.Marker({ map: map, position: position });
-          }
+      if (lat && lng) {
+        const position = new kakao.maps.LatLng(lat, lng);
+        
+        // 마커 생성
+        const marker = new kakao.maps.Marker({ 
+          map: map, 
+          position: position 
+        });
+
+        // 3. name, address, type 컬럼 데이터를 활용한 말풍선(InfoWindow) 콘텐츠 만들기
+        const content = `
+          <div style="padding:10px; min-width:150px;">
+            <strong style="display:block; font-size:14px;">${name}</strong>
+            <span style="font-size:11px; color:#888;">[${type}]</span><br>
+            <span style="font-size:12px; color:#333;">${address}</span>
+          </div>
+        `;
+
+        const infowindow = new kakao.maps.InfoWindow({
+          content: content,
+          removable: true // 닫기 버튼 활성화
+        });
+
+        // 마커를 클릭했을 때 말풍선이 열리도록 이벤트 등록
+        kakao.maps.event.addListener(marker, 'click', function() {
+          infowindow.open(map, marker);
         });
       }
-    }
-
-    function startApp() {
-      initMap();
-      loadDataAndMarkers();
-    }
-
-    if (window.kakao && kakao.maps) {
-      kakao.maps.load(function () {
-        startApp();
-      });
-    } else {
-      console.error('Kakao SDK가 로드되지 않았습니다.');
-      setMessage(`<span style="color:red; font-weight:bold;">❌ 카카오맵 SDK가 로드되지 않았습니다. JavaScript 키와 도메인 등록을 확인하세요.</span>`);
-    }
-  </script>
-</body>
-</html>
+    });
+  }
+}
