@@ -1,103 +1,169 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YTEEN MAP</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=b7a0d481f33cc856cbf0c82270921025"></script>
-    <style>
-        /* 화면 전체를 지도로 꽉 채우는 스타일 */
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-        #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
-        #status-box {
-            position: absolute; top: 10px; left: 10px; z-index: 10;
-            background: rgba(255, 255, 255, 0.9); padding: 10px 15px;
-            border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-            font-family: sans-serif; font-size: 14px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YTEEN MAP</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Kakao JavaScript Key 사용 -->
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=b7a0d481f33cc856cbf0c82270921025&autoload=false"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    #status-box {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      font-family: sans-serif;
+      font-size: 14px;
+    }
+  </style>
 </head>
+
 <body>
-
-    <div id="status-box">
-        <b style="font-size: 16px;">YTEEN 지도 프로젝트</b>
-        <div id="status-message" style="margin-top: 5px; color: #555;">데이터를 불러오는 중...</div>
+  <div id="status-box">
+    <b style="font-size: 16px;">YTEEN 지도 프로젝트</b>
+    <div id="status-message" style="margin-top: 5px; color: #555;">
+      카카오맵을 불러오는 중...
     </div>
-    <div id="map"></div>
+  </div>
 
-    <script>
-        // 직접 찾아내신 수파베이스 정보 주입 완료
-        const supabaseUrl = 'https://oqwovisgssxtxwspkztd.supabase.co';
-        const supabaseKey = 'sb_publishable_8H_VBzKekLY4Nqq4BPz32Q_uc9tiRis';
+  <div id="map"></div>
 
-        const messageClient = document.getElementById('status-message');
-        let map;
+  <script>
+    const supabaseUrl = 'https://oqwovisgssxtxwspkztd.supabase.co';
+    const supabaseKey = 'sb_publishable_8H_VBzKekLY4Nqq4BPz32Q_uc9tiRis';
 
-        // 2. 카카오 지도 먼저 기본 화면 띄우기 (서울 중심)
-        function initMap() {
-            const container = document.getElementById('map');
-            const options = {
-                center: new kakao.maps.LatLng(37.5665, 126.9780), // 서울 시청 중심
-                level: 7
-            };
-            map = new kakao.maps.Map(container, options);
+    const messageClient = document.getElementById('status-message');
+
+    let map;
+    let supabaseClient;
+
+    function setMessage(html) {
+      messageClient.innerHTML = html;
+    }
+
+    function initMap() {
+      const container = document.getElementById('map');
+
+      const options = {
+        center: new kakao.maps.LatLng(37.5665, 126.9780),
+        level: 7
+      };
+
+      map = new kakao.maps.Map(container, options);
+      console.log('카카오맵 생성 완료');
+    }
+
+    async function loadDataAndMarkers() {
+      try {
+        setMessage(`<span style="color:#555;">Supabase 데이터를 불러오는 중...</span>`);
+
+        supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey, {
+          auth: {
+            persistSession: false
+          }
+        });
+
+        const { data, error } = await supabaseClient
+          .from('yteen_map_2')
+          .select('*');
+
+        console.log('Supabase 응답:', { data, error });
+
+        if (error) {
+          throw error;
         }
 
-        // 3. 수파베이스에서 학교 데이터를 강제로 가져와 마커 찍기
-        async function loadDataAndMarkers() {
-            try {
-                // 💡 [핵심 변경] RLS 보안 정책을 무시하고 데이터를 강제로 가져오도록 헤더 설정 추가
-                const supabase = window.supabase.createClient(supabaseUrl, supabaseKey, {
-                    auth: { persistSession: false },
-                    global: { headers: { 'apikey': supabaseKey } }
-                });
-                
-                // yteen_map_2 테이블에서 데이터 호출
-                const { data, error } = await supabase.from('yteen_map_2').select('*');
-
-                if (error) throw error;
-
-                if (data && data.length > 0) {
-                    messageClient.innerHTML = `<span style="color:green; font-weight:bold;">🎉 학교 ${data.length}개 로드 성공!</span>`;
-                    
-                    // 첫 번째 학교 위치로 지도 중심 이동 처리
-                    if(data[0].latitude && data[0].longitude) {
-                        map.setCenter(new kakao.maps.LatLng(data[0].latitude, data[0].longitude));
-                    }
-
-                    // 마커 찍기 돌입
-                    data.forEach(school => {
-                        const name = school.school_name || school.name || '이름 없음';
-                        const lat = school.latitude || school.lat;
-                        const lng = school.longitude || school.lng;
-
-                        if (lat && lng) {
-                            const markerPosition = new kakao.maps.LatLng(lat, lng);
-                            const marker = new kakao.maps.Marker({ position: markerPosition });
-                            marker.setMap(map);
-
-                            // 마커 클릭 시 학교 이름을 보여주는 말풍선
-                            const infowindow = new kakao.maps.InfoWindow({
-                                content: `<div style="padding:5px; font-size:12px; text-align:center;">${name}</div>`
-                            });
-                            kakao.maps.event.addListener(marker, 'click', function() {
-                                infowindow.open(map, marker);
-                            });
-                        }
-                    });
-                } else {
-                    messageClient.innerHTML = `<span style="color:orange; font-weight:bold;">⚠️ 연결 성공! 단, 테이블에 데이터가 없습니다. 수파베이스에 CSV를 업로드해 주세요.</span>`;
-                }
-            } catch (err) {
-                console.error(err);
-                messageClient.innerHTML = `<span style="color:red; font-weight:bold;">❌ 에러: 데이터를 가져오지 못했습니다. 수파베이스 창고를 확인하세요.</span>`;
-            }
+        if (!data || data.length === 0) {
+          setMessage(`<span style="color:orange; font-weight:bold;">⚠️ 연결 성공! 단, 테이블에 데이터가 없습니다.</span>`);
+          return;
         }
 
-        // 실행 시작
-        initMap();
-        loadDataAndMarkers();
-    </script>
+        setMessage(`<span style="color:green; font-weight:bold;">🎉 학교 ${data.length}개 로드 성공!</span>`);
+
+        let firstPosition = null;
+
+        data.forEach((school) => {
+          const name = school.school_name || school.name || '이름 없음';
+
+          const lat = Number(school.latitude ?? school.lat);
+          const lng = Number(school.longitude ?? school.lng);
+
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            console.warn('위도/경도 값 오류:', school);
+            return;
+          }
+
+          const markerPosition = new kakao.maps.LatLng(lat, lng);
+
+          if (!firstPosition) {
+            firstPosition = markerPosition;
+          }
+
+          const marker = new kakao.maps.Marker({
+            position: markerPosition
+          });
+
+          marker.setMap(map);
+
+          const infowindow = new kakao.maps.InfoWindow({
+            content: `<div style="padding:5px; font-size:12px; text-align:center; white-space:nowrap;">${name}</div>`
+          });
+
+          kakao.maps.event.addListener(marker, 'click', function () {
+            infowindow.open(map, marker);
+          });
+        });
+
+        if (firstPosition) {
+          map.setCenter(firstPosition);
+        } else {
+          setMessage(`<span style="color:orange; font-weight:bold;">⚠️ 데이터는 있지만 유효한 위도/경도 값이 없습니다.</span>`);
+        }
+
+      } catch (err) {
+        console.error('데이터 로드 실패:', err);
+        setMessage(`<span style="color:red; font-weight:bold;">❌ 에러: ${err.message}</span>`);
+      }
+    }
+
+    function startApp() {
+      initMap();
+      loadDataAndMarkers();
+    }
+
+    if (window.kakao && kakao.maps) {
+      kakao.maps.load(function () {
+        startApp();
+      });
+    } else {
+      console.error('Kakao SDK가 로드되지 않았습니다.');
+      setMessage(`<span style="color:red; font-weight:bold;">❌ 카카오맵 SDK가 로드되지 않았습니다. JavaScript 키와 도메인 등록을 확인하세요.</span>`);
+    }
+  </script>
 </body>
 </html>
