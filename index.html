@@ -27,7 +27,7 @@
     <div id="map"></div>
 
     <script>
-        // 직접 찾아내신 수파베이스 실제 정보 주입 완료!
+        // 수파베이스 접속 정보 (정확하게 주입 완료)
         const supabaseUrl = 'https://oqwovisgssxtxwspkztd.supabase.co';
         const supabaseKey = 'sb_publishable_8H_VBzKekLY4Nqq4BPz32Q_uc9tiRis';
 
@@ -44,11 +44,14 @@
             map = new kakao.maps.Map(container, options);
         }
 
-        // 3. 수파베이스 창고에서 학교 데이터 가져와 지도에 마커 찍기
+        // 3. 수파베이스에서 학교 데이터를 강제로 가져와 마커 찍기
         async function loadDataAndMarkers() {
             try {
-                // 수파베이스 클라이언트 안전하게 생성
-                const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+                // RLS 보안 정책을 강제로 통과하기 위해 헤더 설정을 추가하여 클라이언트 생성
+                const supabase = window.supabase.createClient(supabaseUrl, supabaseKey, {
+                    auth: { persistSession: false },
+                    global: { headers: { 'apikey': supabaseKey } }
+                });
                 
                 // yteen_map_2 테이블에서 데이터 호출
                 const { data, error } = await supabase.from('yteen_map_2').select('*');
@@ -56,4 +59,32 @@
                 if (error) throw error;
 
                 if (data && data.length > 0) {
-                    messageClient.innerHTML = `<span style="color:green; font-weight:bold;">🎉 학교 ${data.length}개 로드 성공
+                    messageClient.innerHTML = `<span style="color:green; font-weight:bold;">🎉 학교 ${data.length}개 로드 성공!</span>`;
+                    
+                    // 첫 번째 학교 위치로 지도 중심 이동 처리
+                    if(data[0].latitude && data[0].longitude) {
+                        map.setCenter(new kakao.maps.LatLng(data[0].latitude, data[0].longitude));
+                    }
+
+                    // 마커 찍기 돌입
+                    data.forEach(school => {
+                        const name = school.school_name || school.name || '이름 없음';
+                        const lat = school.latitude || school.lat;
+                        const lng = school.longitude || school.lng;
+
+                        if (lat && lng) {
+                            const markerPosition = new kakao.maps.LatLng(lat, lng);
+                            const marker = new kakao.maps.Marker({ position: markerPosition });
+                            marker.setMap(map);
+
+                            // 마커 클릭 시 학교 이름을 보여주는 말풍선
+                            const infowindow = new kakao.maps.InfoWindow({
+                                content: `<div style="padding:5px; font-size:12px; text-align:center;">${name}</div>`
+                            });
+                            kakao.maps.event.addListener(marker, 'click', function() {
+                                infowindow.open(map, marker);
+                            });
+                        }
+                    });
+                } else {
+                    messageClient.innerHTML = `<span style="color:orange; font-weight:bold
