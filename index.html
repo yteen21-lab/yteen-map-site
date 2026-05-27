@@ -135,3 +135,34 @@
     });
   }
 }
+  function startApp() {
+
+      initMap();
+
+      loadDataAndMarkers();
+
+    }
+
+
+
+    if (window.kakao && kakao.maps) {
+
+      kakao.maps.load(function () {
+
+        startApp();
+
+      });
+
+    } else {
+
+      console.error('Kakao SDK가 로드되지 않았습니다.');
+
+      setMessage(`<span style="color:red; font-weight:bold;">❌ 카카오맵 SDK가 로드되지 않았습니다. JavaScript 키와 도메인 등록을 확인하세요.</span>`);
+
+    }
+
+  </script>
+
+</body>
+
+</html>
