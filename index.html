@@ -5,52 +5,99 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YTEEN MAP</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=b7a0d481f33cc856cbf0c82270921025"></script>
+    <style>
+        /* 화면 전체를 지도로 꽉 채우는 스타일 */
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+        #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+        #status-box {
+            position: absolute; top: 10px; left: 10px; z-index: 10;
+            background: rgba(255, 255, 255, 0.9); padding: 10px 15px;
+            border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            font-family: sans-serif; font-size: 14px;
+        }
+    </style>
 </head>
 <body>
-    <h1>YTEEN 지도 프로젝트</h1>
-    <div id="status-message">
-        <p>데이터를 가져오는 중입니다... 잠시만 기다려주세요.</p>
+
+    <div id="status-box">
+        <b style="font-size: 16px;">YTEEN 지도 프로젝트</b>
+        <div id="status-message" style="margin-top: 5px; color: #555;">데이터를 불러오는 중...</div>
     </div>
+    <div id="map"></div>
 
     <script>
-        // ⚠️ [중요] 아래 작은따옴표('') 사이에 수파베이스 대시보드에서 복사한 실제 값을 넣어주세요!
-        // 예시: const supabaseUrl = 'https://abcde.supabase.co';
-        const supabaseUrl = '여기에_수파베이스_PROJECT_URL_넣기';
-        const supabaseKey = '여기에_수파베이스_API_KEY(anon_public)_넣기';
-        
-        let supabase;
-        const messageClient = document.getElementById('status-message');
+        // ⚠️ [필수] 내 수파베이스 정보 주입 (작은따옴표 내부만 정확히 변경해 주세요)
+        const supabaseUrl = '여기에_수파베이스_URL_넣기';
+        const supabaseKey = '여기에_수파베이스_ANON_KEY_넣기';
 
-        try {
-            // 수파베이스 초기화
-            supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
-            
-            // 데이터 로드 함수 실행
-            loadData();
-        } catch (initError) {
-            console.error("수파베이스 초기화 실패:", initError);
-            messageClient.innerHTML = `<p style="color:red">초기화 에러: 수파베이스 주소와 키를 코드가 읽지 못했습니다.</p>`;
+        const messageClient = document.getElementById('status-message');
+        let map;
+
+        // 2. 카카오 지도 먼저 기본 화면 띄우기 (서울 중심)
+        function initMap() {
+            const container = document.getElementById('map');
+            const options = {
+                center: new kakao.maps.LatLng(37.5665, 126.9780), // 서울 시청 중심
+                level: 7
+            };
+            map = new kakao.maps.Map(container, options);
         }
 
-        // yteen_map_2 테이블에서 데이터를 가져오는 함수
-        async function loadData() {
-            if (!supabase) return;
+        // 3. 수파베이스 창고에서 학교 데이터 가져와 지도에 마커 찍기
+        async function loadDataAndMarkers() {
+            try {
+                const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+                
+                // yteen_map_2 테이블에서 데이터 호출
+                const { data, error } = await supabase.from('yteen_map_2').select('*');
 
-            const { data, error } = await supabase
-                .from('yteen_map_2') // 수파베이스 테이블 이름
-                .select('*');
+                if (error) throw error;
 
-            if (error) {
-                console.error("데이터 가져오기 실패:", error);
-                messageClient.innerHTML = `<p style="color:red">에러 발생: ${error.message}</p>`;
-            } else {
-                console.log("성공적으로 가져온 데이터:", data);
                 if (data && data.length > 0) {
-                    messageClient.innerHTML = `<p style="color:green; font-weight:bold; font-size: 18px;">🎉 성공! 수파베이스 창고에서 총 ${data.length}개의 데이터를 정상적으로 가져왔습니다.</p>`;
+                    messageClient.innerHTML = `<span style="color:green; font-weight:bold;">🎉 학교 ${data.length}개 로드 성공!</span>`;
+                    
+                    // 첫 번째 학교 위치로 지도 중심 이동 처리
+                    if(data[0].latitude && data[0].longitude) {
+                        map.setCenter(new kakao.maps.LatLng(data[0].latitude, data[0].longitude));
+                    }
+
+                    // 마커 찍기 돌입
+                    data.forEach(school => {
+                        // 엑셀(CSV) 열 이름이 다를 경우를 대비해 변수 매칭 (학교명, 위도, 경도)
+                        const name = school.school_name || school.name || '이름 없음';
+                        const lat = school.latitude || school.lat;
+                        const lng = school.longitude || school.lng;
+
+                        if (lat && lng) {
+                            const markerPosition = new kakao.maps.LatLng(lat, lng);
+                            const marker = new kakao.maps.Marker({ position: markerPosition });
+                            marker.setMap(map);
+
+                            // 마커 클릭 시 학교 이름을 보여주는 말풍선(인포윈도우)
+                            const infowindow = new kakao.maps.InfoWindow({
+                                content: `<div style="padding:5px; font-size:12px; text-align:center;">${name}</div>`
+                            });
+                            kakao.maps.event.addListener(marker, 'click', function() {
+                                infowindow.open(map, marker);
+                            });
+                        }
+                    });
                 } else {
-                    messageClient.innerHTML = `<p style="color:orange; font-weight:bold;">⚠️ 연결은 성공했으나, 테이블이 비어있습니다. 수파베이스 [Table Editor]에서 CSV 파일 업로드를 완료하셨는지 확인해주세요!</p>`;
+                    messageClient.innerHTML = `<span style="color:orange;">⚠️ 연결 성공! 단, 테이블에 CSV 데이터가 없습니다.</span>`;
                 }
+            } catch (err) {
+                console.error(err);
+                messageClient.innerHTML = `<span style="color:red;">❌ 에러: 주소/키 오타 또는 테이블명을 확인하세요.</span>`;
             }
+        }
+
+        // 지도 켜고 데이터 매핑 시작
+        initMap();
+        if (supabaseUrl.indexOf('여기에_') === -1) {
+            loadDataAndMarkers();
+        } else {
+            messageClient.innerHTML = `<span style="color:red;">⚠️ 코드를 수정하여 실제 수파베이스 주소와 키를 넣어주세요!</span>`;
         }
     </script>
 </body>
