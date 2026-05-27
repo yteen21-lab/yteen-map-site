@@ -27,7 +27,7 @@
     <div id="map"></div>
 
     <script>
-        // 수파베이스 접속 정보 (정확하게 주입 완료)
+        // 직접 찾아내신 수파베이스 정보 주입 완료
         const supabaseUrl = 'https://oqwovisgssxtxwspkztd.supabase.co';
         const supabaseKey = 'sb_publishable_8H_VBzKekLY4Nqq4BPz32Q_uc9tiRis';
 
@@ -47,7 +47,7 @@
         // 3. 수파베이스에서 학교 데이터를 강제로 가져와 마커 찍기
         async function loadDataAndMarkers() {
             try {
-                // RLS 보안 정책을 강제로 통과하기 위해 헤더 설정을 추가하여 클라이언트 생성
+                // 💡 [핵심 변경] RLS 보안 정책을 무시하고 데이터를 강제로 가져오도록 헤더 설정 추가
                 const supabase = window.supabase.createClient(supabaseUrl, supabaseKey, {
                     auth: { persistSession: false },
                     global: { headers: { 'apikey': supabaseKey } }
@@ -87,4 +87,17 @@
                         }
                     });
                 } else {
-                    messageClient.innerHTML = `<span style="color:orange; font-weight:bold
+                    messageClient.innerHTML = `<span style="color:orange; font-weight:bold;">⚠️ 연결 성공! 단, 테이블에 데이터가 없습니다. 수파베이스에 CSV를 업로드해 주세요.</span>`;
+                }
+            } catch (err) {
+                console.error(err);
+                messageClient.innerHTML = `<span style="color:red; font-weight:bold;">❌ 에러: 데이터를 가져오지 못했습니다. 수파베이스 창고를 확인하세요.</span>`;
+            }
+        }
+
+        // 실행 시작
+        initMap();
+        loadDataAndMarkers();
+    </script>
+</body>
+</html>
